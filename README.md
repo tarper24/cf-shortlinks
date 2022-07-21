@@ -1,2 +1,3 @@
-# go.t24.co
-URL shortener for go.t24.co
+# CF Shortlinks
+
+URL shortener built on Cloudflare Workers

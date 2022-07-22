@@ -20,9 +20,6 @@ preview_id = "8b8875e4a9b14757935c7a835d54c72e"
 BASE_HOSTNAME = "tarper24.workers.dev"
 REDIRECT_CODE = 301
 
-[env.workers]
-workers_dev = true
-
 [env.dev]
 workers_dev = false
 zone_id = "c54889058b4940e0b9916da84b165652"

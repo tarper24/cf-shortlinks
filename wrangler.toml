@@ -85,7 +85,7 @@ pattern = "twitch.t24.co"
 custom_domain = true
 zone_id = "3c593abfa5581f06f7fed3b830a82705"
 
-[[env.dev.routes]]
+[[env.prod.routes]]
 pattern = "twitter.t24.co"
 custom_domain = true
 zone_id = "3c593abfa5581f06f7fed3b830a82705"

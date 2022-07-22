@@ -20,19 +20,72 @@ preview_id = "8b8875e4a9b14757935c7a835d54c72e"
 BASE_HOSTNAME = "tarper24.workers.dev"
 REDIRECT_CODE = 301
 
-[env.workers]
-workers_dev = true
-
 [env.dev]
 workers_dev = false
-zone_id = "c54889058b4940e0b9916da84b165652"
 
 [env.dev.vars]
 BASE_HOSTNAME = "dev.tarper24.net"
+REDIRECT_CODE = 301
+
+[[env.dev.kv_namespaces]]
+binding = "SHORTLINKS"
+id = "78add87baf0f45ccb1d0cdb0160faf4c"
+
+[[env.dev.kv_namespaces]]
+binding = "SHORTDOMAINS"
+id = "8d9b27f97aaf4187beb51b7674c94a6a"
+
+[[env.dev.routes]]
+pattern = "go.dev.tarper24.net"
+custom_domain = true
+zone_id = "c54889058b4940e0b9916da84b165652"
+
+[[env.dev.routes]]
+pattern = "tv.dev.tarper24.net"
+custom_domain = true
+zone_id = "c54889058b4940e0b9916da84b165652"
+
+[[env.dev.routes]]
+pattern = "twitch.dev.tarper24.net"
+custom_domain = true
+zone_id = "c54889058b4940e0b9916da84b165652"
+
+[[env.dev.routes]]
+pattern = "twitter.dev.tarper24.net"
+custom_domain = true
+zone_id = "c54889058b4940e0b9916da84b165652"
 
 [env.prod]
 workers_dev = false
-zone_id = "3c593abfa5581f06f7fed3b830a82705"
 
 [env.prod.vars]
 BASE_HOSTNAME = "t24.co"
+REDIRECT_CODE = 301
+
+[[env.prod.kv_namespaces]]
+binding = "SHORTLINKS"
+id = "ef8d1995d4a14d079e5a4a600db6b5d4"
+
+[[env.prod.kv_namespaces]]
+binding = "SHORTDOMAINS"
+id = "8d9b27f97aaf4187beb51b7674c94a6a"
+
+[[env.prod.routes]]
+pattern = "go.t24.co"
+custom_domain = true
+zone_id = "3c593abfa5581f06f7fed3b830a82705"
+
+[[env.prod.routes]]
+pattern = "tv.t24.co"
+custom_domain = true
+zone_id = "3c593abfa5581f06f7fed3b830a82705"
+
+[[env.prod.routes]]
+pattern = "twitch.t24.co"
+custom_domain = true
+zone_id = "3c593abfa5581f06f7fed3b830a82705"
+
+[[env.dev.routes]]
+pattern = "twitter.t24.co"
+custom_domain = true
+zone_id = "3c593abfa5581f06f7fed3b830a82705"

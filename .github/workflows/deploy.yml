@@ -9,10 +9,8 @@ on:
       environment:
         description: "Environment to deploy worker to"
         type: choice
-        required: true
-        default: workers
+        required: false
         options:
-          - workers
           - dev
           - prod
 

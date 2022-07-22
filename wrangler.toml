@@ -1,0 +1,36 @@
+name = "cf-shortlinks"
+main = "src/index.js"
+compatibility_date = "2022-07-20"
+
+minify = true
+
+workers_dev = true
+
+[[kv_namespaces]]
+binding = "SHORTLINKS"
+id = "33c693b6e1eb4be9bf7bccaa21da5a33"
+preview_id = "013d0cafd19d4bc19209d45b891f4d30"
+
+[[kv_namespaces]]
+binding = "SHORTDOMAINS"
+id = "4573460fa4c64f2596ed0c0527ce3b6d"
+preview_id = "8b8875e4a9b14757935c7a835d54c72e"
+
+[vars]
+BASE_HOSTNAME = "tarper24.workers.dev"
+REDIRECT_CODE = 301
+
+
+[env.dev]
+workers_dev = false
+zone_id = "c54889058b4940e0b9916da84b165652"
+
+[env.dev.vars]
+BASE_HOSTNAME = "dev.tarper24.net"
+
+[env.prod]
+workers_dev = false
+zone_id = "3c593abfa5581f06f7fed3b830a82705"
+
+[env.prod.vars]
+BASE_HOSTNAME = "t24.co"

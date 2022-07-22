@@ -18,7 +18,12 @@ export default {
 		const subdomain = requestURL.hostname.replace(RegExp(`\.?${env.BASE_HOSTNAME}$`), "");
 		const pathname = requestURL.pathname.replace(/^\//, "");
 
-		let redirectURL = await env.SHORTLINKS.get("default");
+		const city = request.cf?.city ? request.cf.city + "," : "";
+		const regionCode = request.cf?.regionCode ? request.cf.regionCode + "," : "";
+		const region = request.cf?.region ? request.cf.region + "," : "";
+		const country = request.cf?.country ? request.cf.country + " - " : "";
+
+		let redirectURL = await env.SHORTLINKS.get("default") || "https://www.github.com/tarper24/cf-shortlinks";
 		const uuid = crypto.randomUUID();
 
 		if (["go", "cf-shortlinks"].includes(subdomain)) {
@@ -30,8 +35,8 @@ export default {
 			redirectURL = await env.SHORTDOMAINS.get(subdomain) || redirectURL;
 		}
 
-		console.log(`${uuid} | ${connectingIP} - [${new Date().toISOString()}] "${request.method} ${request.url} ${request.cf.httpProtocol}" ${env.REDIRECT_CODE} "${referer || "-"}" "${userAgent || "-"}" `);
-		console.log(`${uuid} | ${request.cf.city}, ${request.cf.regionCode || request.cf.region}, ${request.cf.country} - ${redirectURL}`);
+		console.log(`${uuid} | ${connectingIP} - [${new Date().toISOString()}] "${request.method} ${request.url} ${request.cf?.httpProtocol || "-"}" ${env.REDIRECT_CODE || "-"} "${referer || "-"}" "${userAgent || "-"}" `);
+		console.log(`${uuid} | ${city}${regionCode || region}${country}${redirectURL}`);
 
 		return Response.redirect(redirectURL, env.REDIRECT_CODE);
 	},

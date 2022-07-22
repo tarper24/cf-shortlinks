@@ -27,4 +27,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: publish --env ${{ github.event.inputs.environment }}
+          environment: ${{ github.event.inputs.environment }}

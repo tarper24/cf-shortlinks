@@ -81,3 +81,27 @@ custom_domain = true
 [[env.prod.routes]]
 pattern = "twitter.t24.co"
 custom_domain = true
+
+[[env.prod.routes]]
+pattern = "gg.t24.co"
+custom_domain = true
+
+[[env.prod.routes]]
+pattern = "guilded.t24.co"
+custom_domain = true
+
+[[env.prod.routes]]
+pattern = "gh.t24.co"
+custom_domain = true
+
+[[env.prod.routes]]
+pattern = "github.t24.co"
+custom_domain = true
+
+[[env.prod.routes]]
+pattern = "yt.t24.co"
+custom_domain = true
+
+[[env.prod.routes]]
+pattern = "youtube.t24.co"
+custom_domain = true

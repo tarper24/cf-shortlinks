@@ -10,9 +10,9 @@ on:
         description: "Environment to deploy worker to"
         type: choice
         required: true
-        default: default
+        default: workers
         options:
-          - default
+          - workers
           - dev
           - prod
 
@@ -27,4 +27,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: publish --env ${{ github.event.inputs.environment }}
+          environment: ${{ github.event.inputs.environment }}

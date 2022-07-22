@@ -10,9 +10,9 @@ on:
         description: "Environment to deploy worker to"
         type: choice
         required: true
-        default: default
+        default: workers
         options:
-          - default
+          - workers
           - dev
           - prod
 

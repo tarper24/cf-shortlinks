@@ -10,7 +10,6 @@ on:
         description: "Environment to deploy worker to"
         type: choice
         options:
-          -
           - dev
           - prod
 

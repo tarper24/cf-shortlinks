@@ -15,7 +15,7 @@ export default {
 		const userAgent = request.headers.get('User-Agent');
 
 		const requestURL = new URL(request.url);
-		const subdomain = requestURL.hostname.replace(RegExp(`\.?${env.BASE_HOSTNAME}$`), "");
+		const subdomain = requestURL.hostname.replace(RegExp(`\\.?${env.BASE_HOSTNAME}$`), "");
 		const pathname = requestURL.pathname.replace(/^\//, "");
 
 		const city = request.cf?.city ? request.cf.city + ", " : "";

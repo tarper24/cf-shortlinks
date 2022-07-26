@@ -105,3 +105,11 @@ custom_domain = true
 [[env.prod.routes]]
 pattern = "youtube.t24.co"
 custom_domain = true
+
+[[env.prod.routes]]
+pattern = "steam.t24.co"
+custom_domain = true
+
+[[env.prod.routes]]
+pattern = "games.t24.co"
+custom_domain = true

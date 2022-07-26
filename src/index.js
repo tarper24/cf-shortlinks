@@ -18,9 +18,9 @@ export default {
 		const subdomain = requestURL.hostname.replace(RegExp(`\.?${env.BASE_HOSTNAME}$`), "");
 		const pathname = requestURL.pathname.replace(/^\//, "");
 
-		const city = request.cf?.city ? request.cf.city + "," : "";
-		const regionCode = request.cf?.regionCode ? request.cf.regionCode + "," : "";
-		const region = request.cf?.region ? request.cf.region + "," : "";
+		const city = request.cf?.city ? request.cf.city + ", " : "";
+		const regionCode = request.cf?.regionCode ? request.cf.regionCode + ", " : "";
+		const region = request.cf?.region ? request.cf.region + ", " : "";
 		const country = request.cf?.country ? request.cf.country + " - " : "";
 
 		let redirectURL = await env.SHORTLINKS.get("default") || "https://www.github.com/tarper24/cf-shortlinks";
@@ -36,7 +36,7 @@ export default {
 		}
 
 		console.log(`${uuid} | ${connectingIP} - [${new Date().toISOString()}] "${request.method} ${request.url} ${request.cf?.httpProtocol || "-"}" ${env.REDIRECT_CODE || "-"} "${referer || "-"}" "${userAgent || "-"}" `);
-		console.log(`${uuid} | ${city}${regionCode || region}${country}${redirectURL}`);
+		console.log(`${uuid} | ${city}${region || regionCode}${country}${redirectURL}`);
 
 		return Response.redirect(redirectURL, env.REDIRECT_CODE);
 	},

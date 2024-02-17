@@ -113,3 +113,11 @@ custom_domain = true
 [[env.prod.routes]]
 pattern = "games.t24.co"
 custom_domain = true
+
+[[env.prod.routes]]
+pattern = "tg.t24.co"
+custom_domain = true
+
+[[env.prod.routes]]
+pattern = "telegram.t24.co"
+custom_domain = true

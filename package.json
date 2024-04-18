@@ -2,7 +2,7 @@
   "name": "cf-shortlinks",
   "version": "0.0.0",
   "devDependencies": {
-    "wrangler": "2.20.2"
+    "wrangler": "3.51.2"
   },
   "private": true,
   "scripts": {

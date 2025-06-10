@@ -121,3 +121,11 @@ custom_domain = true
 [[env.prod.routes]]
 pattern = "telegram.t24.co"
 custom_domain = true
+
+[[env.prod.routes]]
+pattern = "ig.t24.co"
+custom_domain = true
+
+[[env.prod.routes]]
+pattern = "instagram.t24.co"
+custom_domain = true

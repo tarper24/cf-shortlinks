@@ -11,9 +11,18 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    groups:
+      actions:
+        patterns:
+          - "*"
 
   # Maintain dependencies for npm
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "daily"
+    groups:
+      dependencies:
+        dependency-type: "production"
+      dev-dependencies:
+        dependency-type: "development"

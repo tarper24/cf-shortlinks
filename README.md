@@ -63,55 +63,25 @@ Each command prints an `id`. Keep them for the next step. (You can also create n
 
 If you want separate dev and production deployments, create a second set and pass `--env dev` or `--env prod` (see the multi-environment note below).
 
-### 4. Edit `wrangler.toml`
+### 4. Create your `wrangler.toml`
 
-The `wrangler.toml` in this repository belongs to the original author: it contains their namespace IDs, domains and routes, so **you must replace them**. For a simple single-environment setup, replace the whole file with this:
+The `wrangler.toml` that ships in this repository belongs to the original author: it contains their KV namespace IDs, domains and routes, so it will not work on your account. Replace it with the annotated example:
 
-```toml
-name = "cf-shortlinks"
-main = "src/index.js"
-compatibility_date = "2022-07-20"
-minify = true
-workers_dev = false
-
-# Routes: one custom domain per hostname the Worker answers on.
-# Custom domains do not support wildcards, so every subdomain redirect needs its own entry
-# (or let the admin Setup tab attach them for you, step 9).
-routes = [
-  { pattern = "go.example.com", custom_domain = true },
-  { pattern = "admin.example.com", custom_domain = true },
-]
-
-[[kv_namespaces]]
-binding = "SHORTLINKS"
-id = "<SHORTLINKS id from step 3>"
-
-[[kv_namespaces]]
-binding = "SHORTDOMAINS"
-id = "<SHORTDOMAINS id from step 3>"
-
-# Optional until you use the Setup tab (step 9):
-# [[kv_namespaces]]
-# binding = "ADMIN_CONFIG"
-# id = "<ADMIN_CONFIG id from step 3>"
-
-[[analytics_engine_datasets]]
-binding = "CLICKS"
-dataset = "shortlinks_clicks"
-
-[vars]
-BASE_HOSTNAME = "example.com"        # your domain
-REDIRECT_CODE = 302                  # see "Redirect code and stats" below
-ANALYTICS_DATASET = "shortlinks_clicks"
-WORKER_NAME = "cf-shortlinks"        # must match `name` above
-# Added in step 7:
-# ACCESS_TEAM_DOMAIN = "<team>.cloudflareaccess.com"
-# ACCESS_AUD = "<application AUD tag>"
+```sh
+cp wrangler.toml.example wrangler.toml
 ```
+
+Then open `wrangler.toml` and change every line marked `<<< CHANGE ME`:
+
+- `routes`: your hostnames, `go.example.com` and `admin.example.com`. Custom domains do not support wildcards, so each subdomain redirect needs its own entry, unless you let the admin Setup tab attach them for you (step 9).
+- `[[kv_namespaces]]`: the `SHORTLINKS` and `SHORTDOMAINS` IDs from step 3.
+- `BASE_HOSTNAME`: your domain.
+
+Everything else works as is. The example also documents the optional parts (the `ADMIN_CONFIG` binding, the Access variables, and a sketch for separate `dev` and `prod` environments), which you uncomment as you reach the steps below. `REDIRECT_CODE` is `302` so every click is counted, see [Redirect code and stats](#redirect-code-and-stats).
 
 The Analytics Engine dataset is created automatically the first time the Worker writes to it, there is nothing to set up in the dashboard.
 
-> **Multiple environments (optional):** the original file defines `dev` and `prod` environments under `[env.dev]` and `[env.prod]`, each with its own `[[env.<name>.kv_namespaces]]`, `[[env.<name>.analytics_engine_datasets]]`, `[env.<name>.vars]` and `[[env.<name>.routes]]`. Wrangler does not inherit bindings, vars or routes into environments, so each one needs its own full set. With environments, the deployed Workers are named `cf-shortlinks-dev` and `cf-shortlinks-prod`, so set `WORKER_NAME` to match, and add `--env prod` to every `wrangler` command below.
+> **Multiple environments (optional):** the original file defines `dev` and `prod` environments. Wrangler does not inherit bindings, vars or routes into `[env.*]` sections, so each environment needs its own complete set. The bottom of `wrangler.toml.example` has a commented `prod` sketch. With environments, the deployed Workers are named `cf-shortlinks-dev` and `cf-shortlinks-prod`, so set `WORKER_NAME` to match, and add `--env prod` to every `wrangler` command below.
 
 ### 5. Deploy
 
@@ -142,7 +112,7 @@ The admin hostname refuses all requests until Access is configured. The Worker v
 2. Go to *Access controls > Applications* and add a **self-hosted** application with the public hostname `admin.example.com`.
 3. Add a policy that **allows only you** (for example, an *Allow* policy for your email address). Applications are deny-by-default.
 4. After saving, open the application and copy its **Application Audience (AUD) tag**.
-5. Put both values in `wrangler.toml` under `[vars]`:
+5. In `wrangler.toml`, uncomment `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` under `[vars]` and fill in both values:
 
    ```toml
    ACCESS_TEAM_DOMAIN = "<team>.cloudflareaccess.com"
@@ -204,7 +174,7 @@ Notes:
 2. In your GitHub repository go to *Settings > Secrets and variables > Actions* and add two **repository secrets**: `CF_API_TOKEN` (the deploy token) and `CF_ACCOUNT_ID`.
 3. Pushing to `main` now deploys. Worker secrets and variables set with `wrangler secret put` are kept between deploys; `[vars]` come from `wrangler.toml`.
 
-The workflow passes an `environment` input to Wrangler. A push to `main` deploys with **no** environment, which is the top-level config, exactly what the single-environment `wrangler.toml` above uses. If you use `dev` and `prod` environments, run the workflow manually (*Actions > Deploy Worker > Run workflow*) and pick the environment, or change the workflow to set `environment` yourself.
+The workflow passes an `environment` input to Wrangler. A push to `main` deploys with **no** environment, which is the top-level config, exactly what `wrangler.toml.example` uses. If you use `dev` and `prod` environments, run the workflow manually (*Actions > Deploy Worker > Run workflow*) and pick the environment, or change the workflow to set `environment` yourself.
 
 ## Using the admin UI
 

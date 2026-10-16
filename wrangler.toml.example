@@ -1,0 +1,137 @@
+# CF Shortlinks: example Wrangler configuration (single environment)
+#
+# To use it:
+#   1. Copy this file over wrangler.toml:   cp wrangler.toml.example wrangler.toml
+#   2. Replace every value marked  <<< CHANGE ME  (search for "example.com" and "<")
+#   3. Follow the numbered setup steps in README.md; they are referenced below.
+#
+# The wrangler.toml that ships in this repository belongs to its original author
+# (their KV namespace IDs, domains and routes), so it will not work on your account.
+
+# The Worker's name. This is also the name Cloudflare uses when attaching custom domains.
+name = "cf-shortlinks"
+main = "src/index.js"
+compatibility_date = "2022-07-20"
+minify = true
+
+# Turn off the *.workers.dev address: the Worker is reached through your own domain below.
+workers_dev = false
+
+# ---------------------------------------------------------------------------
+# Routes (README step 4)
+# ---------------------------------------------------------------------------
+# One Cloudflare "custom domain" per hostname the Worker answers on. Your domain must be an
+# active zone on your Cloudflare account, and the hostname must not already have a CNAME record.
+#
+#   go.<domain>     short links:  go.example.com/<slug>
+#   admin.<domain>  the admin UI (README step 7 puts it behind Cloudflare Access)
+#
+# Custom domains do NOT support wildcards, so every subdomain redirect (blog.example.com, ...)
+# needs its own entry here. Alternatively, connect Cloudflare in the admin Setup tab (README
+# step 9) and the admin UI attaches each subdomain for you; then you don't list them here.
+routes = [
+  { pattern = "go.example.com", custom_domain = true },      # <<< CHANGE ME
+  { pattern = "admin.example.com", custom_domain = true },   # <<< CHANGE ME
+  # { pattern = "blog.example.com", custom_domain = true },  # example subdomain redirect
+]
+
+# ---------------------------------------------------------------------------
+# KV namespaces (README step 3)
+# ---------------------------------------------------------------------------
+# Create each with `npx wrangler kv namespace create <NAME>` and paste the printed id.
+
+# slug -> destination URL. The key "default" is the fallback for unknown slugs.
+[[kv_namespaces]]
+binding = "SHORTLINKS"
+id = "<SHORTLINKS namespace id>"   # <<< CHANGE ME
+
+# subdomain -> destination URL (e.g. the key "blog" redirects blog.example.com).
+[[kv_namespaces]]
+binding = "SHORTDOMAINS"
+id = "<SHORTDOMAINS namespace id>"   # <<< CHANGE ME
+
+# Only needed for the admin Setup tab (README step 9). Create it, then uncomment.
+# Also requires the CONFIG_ENCRYPTION_KEY secret: npx wrangler secret put CONFIG_ENCRYPTION_KEY
+# [[kv_namespaces]]
+# binding = "ADMIN_CONFIG"
+# id = "<ADMIN_CONFIG namespace id>"
+
+# ---------------------------------------------------------------------------
+# Click statistics (README step 8)
+# ---------------------------------------------------------------------------
+# Every redirect writes one data point here. The dataset is created automatically on the first
+# write, so there is nothing to create in the dashboard.
+[[analytics_engine_datasets]]
+binding = "CLICKS"
+dataset = "shortlinks_clicks"
+
+# ---------------------------------------------------------------------------
+# Variables (not secret; visible in the dashboard)
+# ---------------------------------------------------------------------------
+[vars]
+# Your domain, without "go." or "admin.".
+BASE_HOSTNAME = "example.com"   # <<< CHANGE ME
+
+# 302 = the browser asks the Worker every time, so every click is counted (recommended).
+# 301 = browsers cache the redirect, so repeat visits are NOT counted in the stats.
+REDIRECT_CODE = 302
+
+# Must match the dataset name above. The admin UI uses it to query statistics.
+ANALYTICS_DATASET = "shortlinks_clicks"
+
+# Must match `name` at the top. Used by the Setup tab when it attaches subdomain routes.
+WORKER_NAME = "cf-shortlinks"
+
+# Cloudflare Access protection for admin.<domain> (README step 7). Until both are set, the
+# admin returns 403 on purpose. Uncomment and fill in, then redeploy.
+# ACCESS_TEAM_DOMAIN = "<your-team>.cloudflareaccess.com"
+# ACCESS_AUD = "<Application Audience (AUD) tag of your Access application>"
+
+# Optional: override the host used when copying short links from the admin (default: go.<BASE_HOSTNAME>).
+# SHORT_HOST = "go.example.com"
+
+# ---------------------------------------------------------------------------
+# Secrets are NOT set in this file. Set them with `npx wrangler secret put <NAME>`:
+#   CF_ACCOUNT_ID, CF_API_TOKEN   statistics: token needs Account > Account Analytics > Read (step 8)
+#   CONFIG_ENCRYPTION_KEY         only for the Setup tab: 32+ random characters (step 9)
+# Never put tokens or keys in this file or commit them.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Optional: separate dev and prod environments
+# ---------------------------------------------------------------------------
+# Wrangler does not inherit bindings, vars or routes into [env.*] sections, so each environment
+# needs its own complete set (own KV namespaces, own analytics dataset, own routes, own vars).
+# Environments deploy as separate Workers named "<name>-<env>" (cf-shortlinks-prod), so set
+# WORKER_NAME to that name, and add `--env prod` to every wrangler command. Sketch for prod:
+#
+# [env.prod]
+# workers_dev = false
+#
+# [env.prod.vars]
+# BASE_HOSTNAME = "example.com"
+# REDIRECT_CODE = 302
+# ANALYTICS_DATASET = "shortlinks_clicks_prod"
+# WORKER_NAME = "cf-shortlinks-prod"
+# ACCESS_TEAM_DOMAIN = "<your-team>.cloudflareaccess.com"
+# ACCESS_AUD = "<AUD tag for the prod admin hostname>"
+#
+# [[env.prod.kv_namespaces]]
+# binding = "SHORTLINKS"
+# id = "<prod SHORTLINKS id>"
+#
+# [[env.prod.kv_namespaces]]
+# binding = "SHORTDOMAINS"
+# id = "<prod SHORTDOMAINS id>"
+#
+# [[env.prod.analytics_engine_datasets]]
+# binding = "CLICKS"
+# dataset = "shortlinks_clicks_prod"
+#
+# [[env.prod.routes]]
+# pattern = "go.example.com"
+# custom_domain = true
+#
+# [[env.prod.routes]]
+# pattern = "admin.example.com"
+# custom_domain = true

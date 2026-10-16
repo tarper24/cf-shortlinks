@@ -12,6 +12,8 @@
 //   double1 = 1
 
 export const SLUG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._~/-]{0,95}$/;
+// A single lowercase DNS label, used for subdomain redirects.
+export const SUBDOMAIN_PATTERN = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
 
 function referrerHost(referer) {
 	if (!referer) return "(direct)";
@@ -113,12 +115,14 @@ export async function queryTotals(env, days) {
 	return { days: d, rows: rows.map((r) => ({ slug: r.slug, kind: r.kind, clicks: Number(r.clicks), lastClick: r.last_click })) };
 }
 
-/** Time series and breakdowns for a single slug. */
-export async function queryDetail(env, slug, days) {
-	if (!SLUG_PATTERN.test(slug) && slug !== "(default)") throw new Error("Invalid slug");
+/** Time series and breakdowns for a single slug (kind "link") or subdomain (kind "domain"). */
+export async function queryDetail(env, slug, days, kind = "link") {
+	if (kind !== "link" && kind !== "domain") throw new Error("Invalid kind");
+	const validName = kind === "domain" ? SUBDOMAIN_PATTERN.test(slug) : SLUG_PATTERN.test(slug) || slug === "(default)";
+	if (!validName) throw new Error("Invalid name");
 	const d = clampDays(days);
 	const table = dataset(env);
-	const where = `blob1 = ${sqlString(slug)} AND timestamp > NOW() - INTERVAL '${d}' DAY`;
+	const where = `blob1 = ${sqlString(slug)} AND blob2 = '${kind}' AND timestamp > NOW() - INTERVAL '${d}' DAY`;
 
 	const breakdown = (column) =>
 		runSql(
@@ -143,6 +147,7 @@ export async function queryDetail(env, slug, days) {
 	const shape = (rows) => rows.map((r) => ({ label: r.label, clicks: Number(r.clicks) }));
 	return {
 		slug,
+		kind,
 		days: d,
 		daily: daily.map((r) => ({ day: r.day, clicks: Number(r.clicks) })),
 		referrers: shape(referrers),

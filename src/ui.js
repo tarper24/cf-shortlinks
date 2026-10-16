@@ -23,9 +23,12 @@ const PAGE = String.raw`<!doctype html>
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
 main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
-header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 h1 { font-size: 22px; margin: 0; }
 .muted { color: var(--muted); font-size: 13px; }
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 8px 14px; color: var(--muted); font-weight: 600; }
+.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
 form.add { display: grid; grid-template-columns: 200px 1fr auto; gap: 10px; align-items: end; }
 label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
@@ -77,12 +80,17 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 		<span class="muted" id="who"></span>
 	</header>
 
+	<nav class="tabs" role="tablist" aria-label="Collections">
+		<button type="button" role="tab" id="tabLinks" aria-selected="true">Links</button>
+		<button type="button" role="tab" id="tabDomains" aria-selected="false">Subdomains</button>
+	</nav>
+
 	<div id="notice" class="notice hidden" role="status"></div>
 
 	<section class="panel">
 		<form class="add" id="addForm" autocomplete="off">
 			<div>
-				<label for="slug">Short name</label>
+				<label for="slug" id="nameLabel">Short name</label>
 				<input id="slug" name="slug" placeholder="my-link" required maxlength="96">
 			</div>
 			<div>
@@ -92,11 +100,12 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 			<button class="primary" type="submit" id="addBtn">Add link</button>
 		</form>
 		<div class="muted" style="margin-top:8px">Changes can take up to a minute to reach every Cloudflare location (KV is eventually consistent).</div>
+		<div class="muted hidden" id="domainNote" style="margin-top:6px">A subdomain only works once it is routed to this Worker: add it as a custom domain route in wrangler.toml (or the Cloudflare dashboard). This page only manages where it redirects.</div>
 	</section>
 
 	<section class="panel">
 		<div class="toolbar">
-			<input id="search" type="search" placeholder="Search links" aria-label="Search links">
+			<input id="search" type="search" placeholder="Search" aria-label="Search">
 			<span class="spacer"></span>
 			<label for="days" style="margin:0">Stats window</label>
 			<select id="days">
@@ -109,7 +118,7 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 		<table>
 			<thead>
 				<tr>
-					<th>Link</th>
+					<th id="colName">Link</th>
 					<th>Destination</th>
 					<th class="num">Clicks</th>
 					<th class="hide-sm">Last click</th>
@@ -148,8 +157,14 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 
 <script>
 (function () {
-	var state = { links: [], clicks: {}, config: null, statsError: null, unresolved: 0, editing: null };
+	// Per-tab settings. "key" is the JSON field name the API expects for the entry's name.
+	var TABS = {
+		links: { path: "/api/links", key: "slug", kind: "link", noun: "link", column: "Link", label: "Short name", placeholder: "my-link", maxlength: 96, add: "Add link" },
+		domains: { path: "/api/domains", key: "name", kind: "domain", noun: "subdomain", column: "Subdomain", label: "Subdomain", placeholder: "docs", maxlength: 63, add: "Add subdomain" }
+	};
+	var state = { tab: "links", links: [], domains: [], unresolved: { links: 0, domains: 0 }, clicks: {}, miss: 0, config: null, statsError: null, editing: null };
 	var $ = function (id) { return document.getElementById(id); };
+	var tab = function () { return TABS[state.tab]; };
 
 	function api(method, path, body) {
 		var opts = { method: method, headers: { "X-Requested-With": "shortlinks-admin" } };
@@ -175,23 +190,29 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 		return isNaN(d) ? "-" : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 	}
 
+	function clickKey(kind, name) { return kind + ":" + name; }
+
 	function load() {
 		var days = $("days").value;
-		var linksP = api("GET", "/api/links").then(function (d) { state.links = d.links; state.unresolved = d.unresolved; });
+		var listsP = Promise.all([api("GET", "/api/links"), api("GET", "/api/domains")]).then(function (r) {
+			state.links = r[0].links; state.domains = r[1].links;
+			state.unresolved = { links: r[0].unresolved, domains: r[1].unresolved };
+		});
 		var statsP = state.config && state.config.statsEnabled
 			? api("GET", "/api/stats?days=" + days).then(function (d) {
 				state.clicks = {}; state.miss = 0;
 				d.rows.forEach(function (r) {
 					if (r.kind === "miss") { state.miss += r.clicks; return; }
-					var cur = state.clicks[r.slug] || { clicks: 0, last: null };
+					var k = clickKey(r.kind, r.slug);
+					var cur = state.clicks[k] || { clicks: 0, last: null };
 					cur.clicks += r.clicks;
 					if (!cur.last || r.lastClick > cur.last) cur.last = r.lastClick;
-					state.clicks[r.slug] = cur;
+					state.clicks[k] = cur;
 				});
 				state.statsError = null;
 			}).catch(function (e) { state.statsError = e.message; })
 			: Promise.resolve();
-		return Promise.all([linksP, statsP]).then(render).catch(function (e) { notify(e.message, true); });
+		return Promise.all([listsP, statsP]).then(render).catch(function (e) { notify(e.message, true); });
 	}
 
 	function cell(tag, className, text) {
@@ -208,28 +229,46 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 		return b;
 	}
 
+	function setTab(name) {
+		state.tab = name;
+		var t = tab();
+		$("tabLinks").setAttribute("aria-selected", String(name === "links"));
+		$("tabDomains").setAttribute("aria-selected", String(name === "domains"));
+		$("nameLabel").textContent = t.label;
+		$("slug").placeholder = t.placeholder;
+		$("slug").maxLength = t.maxlength;
+		$("addBtn").textContent = t.add;
+		$("colName").textContent = t.column;
+		$("domainNote").className = "muted" + (name === "domains" ? "" : " hidden");
+		$("addForm").reset();
+		$("search").value = "";
+		render();
+	}
+
 	function render() {
+		var t = tab();
 		var q = $("search").value.trim().toLowerCase();
 		var tbody = $("rows");
 		tbody.textContent = "";
-		var shown = state.links.filter(function (l) {
+		var all = state.tab === "links" ? state.links : state.domains;
+		var shown = all.filter(function (l) {
 			return !q || l.slug.toLowerCase().indexOf(q) !== -1 || (l.url || "").toLowerCase().indexOf(q) !== -1;
 		}).map(function (l) {
-			var c = state.clicks[l.slug];
+			var c = state.clicks[clickKey(t.kind, l.slug)];
 			return { link: l, clicks: c ? c.clicks : 0, last: c ? c.last : null };
 		}).sort(function (a, b) { return b.clicks - a.clicks || a.link.slug.localeCompare(b.link.slug); });
 
+		var statsOn = state.config && state.config.statsEnabled;
 		shown.forEach(function (row) {
 			var l = row.link;
 			var tr = document.createElement("tr");
-			var slugCell = cell("td", "slug", l.slug === "default" ? "default (fallback)" : l.slug);
-			tr.appendChild(slugCell);
+			tr.appendChild(cell("td", "slug", state.tab === "links" && l.slug === "default" ? "default (fallback)" : l.slug));
 			tr.appendChild(cell("td", "dest", l.url === null ? "(not loaded, edit to set)" : l.url));
-			tr.appendChild(cell("td", "num", state.config && state.config.statsEnabled ? String(row.clicks) : "-"));
+			tr.appendChild(cell("td", "num", statsOn ? String(row.clicks) : "-"));
 			tr.appendChild(cell("td", "hide-sm", fmtDate(row.last)));
 			var actions = cell("td", "actions");
 			actions.appendChild(actionButton("Copy", "", function () { copy(l.slug); }));
-			if (state.config && state.config.statsEnabled) actions.appendChild(actionButton("Stats", "", function () { openDetail(l.slug); }));
+			if (statsOn) actions.appendChild(actionButton("Stats", "", function () { openDetail(l.slug); }));
 			actions.appendChild(actionButton("Edit", "", function () { openEdit(l); }));
 			actions.appendChild(actionButton("Delete", "danger", function () { remove(l.slug); }));
 			tr.appendChild(actions);
@@ -237,36 +276,45 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 		});
 
 		$("empty").className = shown.length ? "muted hidden" : "muted";
-		$("empty").textContent = state.links.length ? "No links match your search." : "No links yet.";
+		$("empty").textContent = all.length ? "No matches for your search." : "No " + t.noun + "s yet.";
 
 		var statsNotice = $("statsNotice");
+		var unresolved = state.unresolved[state.tab];
 		if (state.config && !state.config.statsEnabled) {
 			statsNotice.textContent = "Click statistics are not configured yet. Set CF_ACCOUNT_ID, CF_API_TOKEN and ANALYTICS_DATASET (see the README).";
 			statsNotice.className = "notice";
 		} else if (state.statsError) {
 			statsNotice.textContent = "Could not load stats: " + state.statsError;
 			statsNotice.className = "notice error";
-		} else if (state.unresolved > 0) {
-			statsNotice.textContent = state.unresolved + " older links are not shown with their destination yet. Editing a link stores it in the new format.";
+		} else if (unresolved > 0) {
+			statsNotice.textContent = unresolved + " older entries are not shown with their destination yet. Editing one stores it in the new format.";
 			statsNotice.className = "notice";
 		} else {
 			statsNotice.className = "notice hidden";
 		}
 
 		var miss = $("miss");
-		if (state.miss) { miss.textContent = state.miss + " clicks in this window did not match any link and went to the default destination."; miss.className = "muted"; }
+		if (state.miss) { miss.textContent = state.miss + " clicks in this window did not match any link or subdomain and went to the default destination."; miss.className = "muted"; }
 		else miss.className = "muted hidden";
 	}
 
-	function copy(slug) {
-		var text = state.config.shortBase + "/" + slug;
-		if (slug === "default") text = state.config.shortBase + "/";
+	function shortUrl(name) {
+		if (state.tab === "domains") return "https://" + name + "." + state.config.baseHostname;
+		return name === "default" ? state.config.shortBase + "/" : state.config.shortBase + "/" + name;
+	}
+
+	function copy(name) {
+		var text = shortUrl(name);
 		navigator.clipboard.writeText(text).then(function () { notify("Copied " + text); }, function () { notify("Could not copy. " + text, true); });
 	}
 
-	function remove(slug) {
-		if (!confirm("Delete " + slug + "? Anyone using this short link will be sent to the default page.")) return;
-		api("DELETE", "/api/links?slug=" + encodeURIComponent(slug)).then(function () { notify("Deleted " + slug); return load(); })
+	function remove(name) {
+		var t = tab();
+		var warning = state.tab === "domains"
+			? "Delete " + name + "? Visitors to this subdomain will be sent to the default page."
+			: "Delete " + name + "? Anyone using this short link will be sent to the default page.";
+		if (!confirm(warning)) return;
+		api("DELETE", t.path + "?" + t.key + "=" + encodeURIComponent(name)).then(function () { notify("Deleted " + name); return load(); })
 			.catch(function (e) { notify(e.message, true); });
 	}
 
@@ -278,14 +326,15 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 		$("editUrl").focus();
 	}
 
-	function openDetail(slug) {
+	function openDetail(name) {
+		var t = tab();
 		var days = $("days").value;
-		$("detailTitle").textContent = slug;
+		$("detailTitle").textContent = state.tab === "domains" ? name + "." + state.config.baseHostname : name;
 		$("detailSub").textContent = "Last " + days + " days";
 		var body = $("detailBody");
 		body.textContent = "Loading...";
 		$("detail").showModal();
-		api("GET", "/api/stats/detail?slug=" + encodeURIComponent(slug) + "&days=" + days).then(function (d) {
+		api("GET", "/api/stats/detail?slug=" + encodeURIComponent(name) + "&kind=" + t.kind + "&days=" + days).then(function (d) {
 			body.textContent = "";
 			var total = d.daily.reduce(function (n, r) { return n + r.clicks; }, 0);
 			$("detailSub").textContent = total + " clicks in the last " + d.days + " days";
@@ -334,9 +383,12 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 
 	$("addForm").addEventListener("submit", function (ev) {
 		ev.preventDefault();
+		var t = tab();
 		var btn = $("addBtn");
+		var payload = { url: $("url").value };
+		payload[t.key] = $("slug").value;
 		btn.disabled = true;
-		api("POST", "/api/links", { slug: $("slug").value, url: $("url").value }).then(function (r) {
+		api("POST", t.path, payload).then(function (r) {
 			notify("Added " + r.slug);
 			$("addForm").reset();
 			return load();
@@ -345,14 +397,19 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 
 	$("editForm").addEventListener("submit", function (ev) {
 		ev.preventDefault();
+		var t = tab();
 		var link = state.editing;
-		api("PUT", "/api/links", { slug: link.slug, url: $("editUrl").value }).then(function () {
+		var payload = { url: $("editUrl").value };
+		payload[t.key] = link.slug;
+		api("PUT", t.path, payload).then(function () {
 			$("editDialog").close();
 			notify("Saved " + link.slug);
 			return load();
 		}).catch(function (e) { notify(e.message, true); });
 	});
 
+	$("tabLinks").addEventListener("click", function () { setTab("links"); });
+	$("tabDomains").addEventListener("click", function () { setTab("domains"); });
 	$("editCancel").addEventListener("click", function () { $("editDialog").close(); });
 	$("detailClose").addEventListener("click", function () { $("detail").close(); });
 	$("search").addEventListener("input", render);

@@ -8,11 +8,13 @@ Read the [docs](https://developers.cloudflare.com/workers/) for documentation ab
 
 ## Adding short links and subdomains
 
-Short links can be managed in the [admin UI](#admin-ui) (`admin.<base hostname>`), the Cloudflare dashboard, or Wrangler. Subdomain redirects (the `SHORTDOMAINS` namespace) still need to be added manually in the dashboard or with Wrangler.
+Short links (`SHORTLINKS`) and subdomain redirects (`SHORTDOMAINS`) can both be managed in the [admin UI](#admin-ui) (`admin.<base hostname>`), the Cloudflare dashboard, or Wrangler.
+
+A subdomain redirect only takes effect once the subdomain is routed to the Worker. Add a `[[env.<name>.routes]]` custom domain entry in `wrangler.toml` (or a custom domain in the dashboard); the admin UI manages where the subdomain redirects, not DNS or routes. The names `admin`, `go` and `cf-shortlinks` are reserved.
 
 ## Admin UI
 
-The Worker serves an admin page and JSON API on `admin.<BASE_HOSTNAME>` (`admin.t24.co` in prod, `admin.dev.tarper24.net` in dev). It lets you add, edit, delete and search short links, and shows click statistics per link (totals, daily chart, top referrers, countries and devices).
+The Worker serves an admin page and JSON API on `admin.<BASE_HOSTNAME>` (`admin.t24.co` in prod, `admin.dev.tarper24.net` in dev). It has a **Links** tab and a **Subdomains** tab; each lets you add, edit, delete and search entries, and shows click statistics per entry (totals, daily chart, top referrers, countries and devices).
 
 The admin hostname is protected by **Cloudflare Access**. The Worker also verifies the Access JWT itself, so it stays locked if the Access policy is ever removed. With no Access settings configured, the admin returns 403.
 

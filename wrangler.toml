@@ -24,9 +24,17 @@ dataset = "shortlinks_clicks"
 BASE_HOSTNAME = "tarper24.workers.dev"
 REDIRECT_CODE = 301
 ANALYTICS_DATASET = "shortlinks_clicks"
-# Admin UI (admin.<BASE_HOSTNAME>) and stats need extra settings, see README "Admin UI":
+WORKER_NAME = "cf-shortlinks"
+# Admin UI (admin.<BASE_HOSTNAME>), stats and automatic subdomain routes need extra settings, see README "Admin UI":
 #   vars:    ACCESS_TEAM_DOMAIN, ACCESS_AUD
-#   secrets: CF_ACCOUNT_ID, CF_API_TOKEN
+#   secrets: CF_ACCOUNT_ID, CF_API_TOKEN (stats), CONFIG_ENCRYPTION_KEY (Setup tab)
+#   KV:      ADMIN_CONFIG (Setup tab). Create it with `npx wrangler kv namespace create ADMIN_CONFIG`, then add:
+#
+#   [[kv_namespaces]]
+#   binding = "ADMIN_CONFIG"
+#   id = "<namespace id>"
+#
+#   and the same block under [[env.dev.kv_namespaces]] / [[env.prod.kv_namespaces]] with their own namespaces.
 
 [env.dev]
 workers_dev = false
@@ -35,6 +43,7 @@ workers_dev = false
 BASE_HOSTNAME = "dev.tarper24.net"
 REDIRECT_CODE = 301
 ANALYTICS_DATASET = "shortlinks_clicks_dev"
+WORKER_NAME = "cf-shortlinks-dev"
 
 [[env.dev.analytics_engine_datasets]]
 binding = "CLICKS"
@@ -75,6 +84,7 @@ workers_dev = false
 BASE_HOSTNAME = "t24.co"
 REDIRECT_CODE = 301
 ANALYTICS_DATASET = "shortlinks_clicks_prod"
+WORKER_NAME = "cf-shortlinks-prod"
 
 [[env.prod.analytics_engine_datasets]]
 binding = "CLICKS"

@@ -3,6 +3,20 @@
 import { authenticate } from "./access.js";
 import { SLUG_PATTERN, SUBDOMAIN_PATTERN, statsConfigured, queryTotals, queryDetail } from "./stats.js";
 import { renderUi } from "./ui.js";
+import {
+	DEFAULT_SCOPES,
+	attachRoute,
+	clearSetup,
+	detachRoute,
+	encryptionReady,
+	finishOAuth,
+	publicConfig,
+	redirectUri,
+	saveSetup,
+	startOAuth,
+	storageReady,
+	testConnection,
+} from "./cloudflare.js";
 
 const MAX_URL_LENGTH = 2048;
 const LEGACY_VALUE_LOOKUPS = 40; // stay well under the 50-subrequest limit on the free plan
@@ -21,6 +35,9 @@ const COLLECTIONS = {
 	domains: {
 		kind: "domain",
 		namespace: (env) => env.SHORTDOMAINS,
+		// Keep the Worker's custom domain route in step with the redirect when Cloudflare access is set up.
+		afterCreate: async (env, name) => ({ route: await attachRoute(env, name) }),
+		afterDelete: async (env, name) => ({ route: await detachRoute(env, name) }),
 		validate: (name) => {
 			if (!SUBDOMAIN_PATTERN.test(name)) return "Subdomain must be lowercase letters, numbers and hyphens (1-63 characters, no leading or trailing hyphen)";
 			if (RESERVED_SUBDOMAINS.has(name)) return `"${name}" is reserved`;
@@ -48,6 +65,12 @@ function json(data, status = 200) {
 
 function problem(message, status = 400) {
 	return json({ error: message }, status);
+}
+
+// After the OAuth round trip, send the browser back to the UI with the outcome (shown via textContent).
+function oauthResult(ok, message) {
+	const params = new URLSearchParams(ok ? { oauth: "ok" } : { oauth: "error", message: message.slice(0, 300) });
+	return new Response(null, { status: 302, headers: { Location: `/?${params}`, "Cache-Control": "no-store" } });
 }
 
 function parseDestination(raw) {
@@ -121,7 +144,8 @@ async function createOrUpdate(request, env, user, collection, { requireNew }) {
 		...(existing.value !== null ? { updatedAt: now } : {}),
 	};
 	await kv.put(slug, destination, { metadata });
-	return json({ slug, ...metadata }, requireNew ? 201 : 200);
+	const extra = requireNew && collection.afterCreate ? await collection.afterCreate(env, slug) : {};
+	return json({ slug, ...metadata, ...extra }, requireNew ? 201 : 200);
 }
 
 export async function handleAdmin(request, env) {
@@ -145,6 +169,23 @@ export async function handleAdmin(request, env) {
 		});
 	}
 
+	// OAuth browser redirects (Access-protected like everything else on this hostname).
+	if (request.method === "GET" && url.pathname === "/oauth/start") {
+		try {
+			return Response.redirect(await startOAuth(env, url.hostname), 302);
+		} catch (err) {
+			return oauthResult(false, err.message);
+		}
+	}
+	if (request.method === "GET" && url.pathname === "/oauth/callback") {
+		try {
+			await finishOAuth(env, url.hostname, url.searchParams);
+			return oauthResult(true, "Cloudflare is connected.");
+		} catch (err) {
+			return oauthResult(false, err.message);
+		}
+	}
+
 	if (!url.pathname.startsWith("/api/")) return new Response("Not found", { status: 404 });
 
 	// CSRF protection for the cookie-authenticated API: browsers can't send these cross-site without CORS.
@@ -161,6 +202,37 @@ export async function handleAdmin(request, env) {
 			return json({ user: auth.email, shortBase: shortBase(env), baseHostname: env.BASE_HOSTNAME, statsEnabled: statsConfigured(env) });
 		}
 
+		if (url.pathname === "/api/setup") {
+			if (request.method === "GET") {
+				return json({
+					storageReady: storageReady(env),
+					encryptionReady: encryptionReady(env),
+					redirectUri: redirectUri(env, url.hostname),
+					defaults: { zoneName: env.BASE_HOSTNAME, workerName: env.WORKER_NAME || "cf-shortlinks", scopes: DEFAULT_SCOPES },
+					config: await publicConfig(env),
+				});
+			}
+			if (request.method === "PUT") {
+				const body = await readJson(request);
+				if (!body) return problem("Request body must be JSON");
+				const invalid = await saveSetup(env, body);
+				if (invalid) return problem(invalid);
+				return json({ config: await publicConfig(env) });
+			}
+			if (request.method === "DELETE") {
+				await clearSetup(env);
+				return json({ config: null });
+			}
+		}
+		if (url.pathname === "/api/setup/test" && request.method === "POST") {
+			try {
+				const result = await testConnection(env);
+				return json({ ok: true, message: `Connected. ${result.domains} custom domain(s) currently attached to this Worker.` });
+			} catch (err) {
+				return json({ ok: false, message: err.message });
+			}
+		}
+
 		const collection = { "/api/links": COLLECTIONS.links, "/api/domains": COLLECTIONS.domains }[url.pathname];
 		if (collection) {
 			if (request.method === "GET") return json(await listEntries(collection.namespace(env)));
@@ -171,7 +243,8 @@ export async function handleAdmin(request, env) {
 				const invalid = collection.validate(name);
 				if (invalid) return problem("Invalid name");
 				await collection.namespace(env).delete(name);
-				return json({ deleted: name });
+				const extra = collection.afterDelete ? await collection.afterDelete(env, name) : {};
+				return json({ deleted: name, ...extra });
 			}
 		}
 

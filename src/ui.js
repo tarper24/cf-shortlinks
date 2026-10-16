@@ -66,6 +66,18 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 .breakdowns ul { list-style: none; margin: 0; padding: 0; }
 .breakdowns li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; font-size: 14px; }
 .breakdowns li span:first-child { overflow-wrap: anywhere; }
+.setup h2 { font-size: 16px; margin: 0 0 4px; }
+.setup .modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 12px 0; }
+.setup .mode { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; cursor: pointer; display: block; font-size: 14px; color: var(--text); margin: 0; }
+.setup .mode:has(input:checked) { border-color: var(--accent); background: var(--bar-bg); }
+.setup .mode input { width: auto; margin-right: 6px; }
+.setup .mode span { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+.setup .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.setup .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+.setup code { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 13px; overflow-wrap: anywhere; }
+a.btn { display: inline-block; padding: 8px 14px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); text-decoration: none; background: var(--panel); }
+a.btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+a.btn[aria-disabled="true"] { opacity: .5; pointer-events: none; }
 @media (max-width: 640px) {
 	form.add { grid-template-columns: 1fr; }
 	th.hide-sm, td.hide-sm { display: none; }
@@ -83,11 +95,48 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 	<nav class="tabs" role="tablist" aria-label="Collections">
 		<button type="button" role="tab" id="tabLinks" aria-selected="true">Links</button>
 		<button type="button" role="tab" id="tabDomains" aria-selected="false">Subdomains</button>
+		<button type="button" role="tab" id="tabSetup" aria-selected="false">Setup</button>
 	</nav>
 
 	<div id="notice" class="notice hidden" role="status"></div>
 
-	<section class="panel">
+	<section class="panel setup hidden" id="setupPanel">
+		<h2>Cloudflare connection</h2>
+		<div class="muted">Lets the Subdomains tab attach and detach each subdomain's custom domain route on this Worker automatically. Optional: without it, add routes in wrangler.toml or the dashboard yourself.</div>
+		<div id="setupBlockers" class="notice hidden" style="margin-top:12px"></div>
+		<form id="setupForm" autocomplete="off">
+			<div class="modes" role="radiogroup" aria-label="How to connect">
+				<label class="mode"><input type="radio" name="mode" value="api_token" checked> API token<span>Paste a token with the Workers Scripts Write permission. Simplest.</span></label>
+				<label class="mode"><input type="radio" name="mode" value="oauth"> OAuth<span>Connect through a Cloudflare OAuth client you create. Revocable from the dashboard.</span></label>
+			</div>
+			<div class="fields">
+				<div><label for="sAccount">Account ID</label><input id="sAccount" maxlength="32" placeholder="32-character account ID"></div>
+				<div><label for="sZone">Zone (domain)</label><input id="sZone" maxlength="253" placeholder="example.com"></div>
+				<div><label for="sWorker">Worker name</label><input id="sWorker" maxlength="63" placeholder="cf-shortlinks"></div>
+			</div>
+			<div id="tokenFields" class="fields">
+				<div><label for="sToken">API token</label><input id="sToken" type="password" autocomplete="new-password" maxlength="200"></div>
+			</div>
+			<div id="oauthFields" class="hidden">
+				<div class="fields">
+					<div><label for="sClientId">Client ID</label><input id="sClientId" maxlength="128"></div>
+					<div><label for="sClientSecret">Client secret</label><input id="sClientSecret" type="password" autocomplete="new-password" maxlength="200"></div>
+					<div><label for="sScopes">Scopes</label><input id="sScopes" maxlength="500"></div>
+				</div>
+				<div class="muted">Create the client in Manage Account &gt; OAuth clients with this redirect URI: <code id="redirectUri"></code> <button type="button" class="link" id="copyRedirect">Copy</button></div>
+				<div class="muted" style="margin-top:4px">Scope names must match what Cloudflare lists for your account (GET /client/v4/oauth/scopes).</div>
+			</div>
+			<div class="actions">
+				<button class="primary" type="submit" id="setupSave">Save</button>
+				<a class="btn primary hidden" id="connectBtn" href="/oauth/start" aria-disabled="true">Connect Cloudflare</a>
+				<button type="button" id="setupTest">Test connection</button>
+				<button type="button" class="danger" id="setupClear">Remove</button>
+				<span class="muted" id="setupStatus"></span>
+			</div>
+		</form>
+	</section>
+
+	<section class="panel" id="addPanel">
 		<form class="add" id="addForm" autocomplete="off">
 			<div>
 				<label for="slug" id="nameLabel">Short name</label>
@@ -100,10 +149,10 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 			<button class="primary" type="submit" id="addBtn">Add link</button>
 		</form>
 		<div class="muted" style="margin-top:8px">Changes can take up to a minute to reach every Cloudflare location (KV is eventually consistent).</div>
-		<div class="muted hidden" id="domainNote" style="margin-top:6px">A subdomain only works once it is routed to this Worker: add it as a custom domain route in wrangler.toml (or the Cloudflare dashboard). This page only manages where it redirects.</div>
+		<div class="muted hidden" id="domainNote" style="margin-top:6px"></div>
 	</section>
 
-	<section class="panel">
+	<section class="panel" id="tablePanel">
 		<div class="toolbar">
 			<input id="search" type="search" placeholder="Search" aria-label="Search">
 			<span class="spacer"></span>
@@ -162,7 +211,7 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 		links: { path: "/api/links", key: "slug", kind: "link", noun: "link", column: "Link", label: "Short name", placeholder: "my-link", maxlength: 96, add: "Add link" },
 		domains: { path: "/api/domains", key: "name", kind: "domain", noun: "subdomain", column: "Subdomain", label: "Subdomain", placeholder: "docs", maxlength: 63, add: "Add subdomain" }
 	};
-	var state = { tab: "links", links: [], domains: [], unresolved: { links: 0, domains: 0 }, clicks: {}, miss: 0, config: null, statsError: null, editing: null };
+	var state = { tab: "links", setup: null, links: [], domains: [], unresolved: { links: 0, domains: 0 }, clicks: {}, miss: 0, config: null, statsError: null, editing: null };
 	var $ = function (id) { return document.getElementById(id); };
 	var tab = function () { return TABS[state.tab]; };
 
@@ -231,21 +280,41 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 
 	function setTab(name) {
 		state.tab = name;
-		var t = tab();
 		$("tabLinks").setAttribute("aria-selected", String(name === "links"));
 		$("tabDomains").setAttribute("aria-selected", String(name === "domains"));
+		$("tabSetup").setAttribute("aria-selected", String(name === "setup"));
+		var onSetup = name === "setup";
+		$("setupPanel").className = "panel setup" + (onSetup ? "" : " hidden");
+		$("addPanel").className = "panel" + (onSetup ? " hidden" : "");
+		$("tablePanel").className = "panel" + (onSetup ? " hidden" : "");
+		if (onSetup) { loadSetup(); return; }
+		var t = tab();
 		$("nameLabel").textContent = t.label;
 		$("slug").placeholder = t.placeholder;
 		$("slug").maxLength = t.maxlength;
 		$("addBtn").textContent = t.add;
 		$("colName").textContent = t.column;
-		$("domainNote").className = "muted" + (name === "domains" ? "" : " hidden");
+		updateDomainNote();
 		$("addForm").reset();
 		$("search").value = "";
 		render();
 	}
 
+	function routesActive() {
+		var c = state.setup && state.setup.config;
+		return Boolean(c && (c.mode === "api_token" ? c.hasApiToken : c.connected));
+	}
+
+	function updateDomainNote() {
+		var note = $("domainNote");
+		note.className = "muted" + (state.tab === "domains" ? "" : " hidden");
+		note.textContent = routesActive()
+			? "Adding or deleting a subdomain here also attaches or detaches its custom domain route through the Cloudflare connection set up in Setup."
+			: "A subdomain only works once it is routed to this Worker: add a custom domain route in wrangler.toml or the dashboard, or connect Cloudflare in Setup to do it from here.";
+	}
+
 	function render() {
+		if (state.tab === "setup") return;
 		var t = tab();
 		var q = $("search").value.trim().toLowerCase();
 		var tbody = $("rows");
@@ -314,8 +383,10 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 			? "Delete " + name + "? Visitors to this subdomain will be sent to the default page."
 			: "Delete " + name + "? Anyone using this short link will be sent to the default page.";
 		if (!confirm(warning)) return;
-		api("DELETE", t.path + "?" + t.key + "=" + encodeURIComponent(name)).then(function () { notify("Deleted " + name); return load(); })
-			.catch(function (e) { notify(e.message, true); });
+		api("DELETE", t.path + "?" + t.key + "=" + encodeURIComponent(name)).then(function (r) {
+			notify("Deleted " + name + (r.route ? ". " + r.route.message : ""), Boolean(r.route && r.route.status === "failed"));
+			return load();
+		}).catch(function (e) { notify(e.message, true); });
 	}
 
 	function openEdit(link) {
@@ -389,7 +460,7 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 		payload[t.key] = $("slug").value;
 		btn.disabled = true;
 		api("POST", t.path, payload).then(function (r) {
-			notify("Added " + r.slug);
+			notify("Added " + r.slug + (r.route ? ". " + r.route.message : ""), Boolean(r.route && r.route.status === "failed"));
 			$("addForm").reset();
 			return load();
 		}).catch(function (e) { notify(e.message, true); }).then(function () { btn.disabled = false; });
@@ -408,8 +479,101 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 		}).catch(function (e) { notify(e.message, true); });
 	});
 
+	// ---- Setup tab ----
+	function modeValue() {
+		return document.querySelector('input[name="mode"]:checked').value;
+	}
+
+	function applyMode() {
+		var oauth = modeValue() === "oauth";
+		$("tokenFields").className = "fields" + (oauth ? " hidden" : "");
+		$("oauthFields").className = oauth ? "" : "hidden";
+		updateConnect();
+	}
+
+	function updateConnect() {
+		var c = state.setup && state.setup.config;
+		var show = modeValue() === "oauth" && c && c.mode === "oauth" && c.hasClientSecret;
+		var btn = $("connectBtn");
+		btn.className = "btn primary" + (show ? "" : " hidden");
+		btn.setAttribute("aria-disabled", String(!show));
+		btn.textContent = c && c.connected ? "Reconnect Cloudflare" : "Connect Cloudflare";
+	}
+
+	function fillSetup() {
+		var s = state.setup;
+		var c = s.config;
+		var blockers = [];
+		if (!s.storageReady) blockers.push("The ADMIN_CONFIG KV namespace is not bound. Create it and add the binding in wrangler.toml (see the README), then redeploy.");
+		if (!s.encryptionReady) blockers.push("CONFIG_ENCRYPTION_KEY is not set. Add a random secret of 32+ characters with: wrangler secret put CONFIG_ENCRYPTION_KEY");
+		$("setupBlockers").textContent = blockers.join(" ");
+		$("setupBlockers").className = "notice" + (blockers.length ? "" : " hidden");
+		$("setupSave").disabled = blockers.length > 0;
+
+		var mode = c ? c.mode : "api_token";
+		document.querySelector('input[name="mode"][value="' + mode + '"]').checked = true;
+		$("sAccount").value = c ? c.accountId : "";
+		$("sZone").value = c ? c.zoneName : s.defaults.zoneName;
+		$("sWorker").value = c ? c.workerName : s.defaults.workerName;
+		$("sToken").value = "";
+		$("sToken").placeholder = c && c.hasApiToken ? "Saved. Leave blank to keep it." : "Paste an API token";
+		$("sClientId").value = c ? c.clientId : "";
+		$("sClientSecret").value = "";
+		$("sClientSecret").placeholder = c && c.hasClientSecret ? "Saved. Leave blank to keep it." : "Client secret";
+		$("sScopes").value = c ? c.scopes : s.defaults.scopes;
+		$("redirectUri").textContent = s.redirectUri;
+
+		var status = "Not set up.";
+		if (c) {
+			status = c.mode === "api_token"
+				? (c.hasApiToken ? "API token saved." : "No API token saved.")
+				: (c.connected ? "Connected" + (c.connectedAt ? " on " + fmtDate(c.connectedAt) : "") + "." : "Saved. Click Connect Cloudflare to authorize.");
+		}
+		$("setupStatus").textContent = status;
+		applyMode();
+		updateDomainNote();
+	}
+
+	function loadSetup() {
+		return api("GET", "/api/setup").then(function (s) { state.setup = s; fillSetup(); })
+			.catch(function (e) { notify(e.message, true); });
+	}
+
+	document.querySelectorAll('input[name="mode"]').forEach(function (r) { r.addEventListener("change", applyMode); });
+
+	$("setupForm").addEventListener("submit", function (ev) {
+		ev.preventDefault();
+		var mode = modeValue();
+		var payload = { mode: mode, accountId: $("sAccount").value, zoneName: $("sZone").value, workerName: $("sWorker").value };
+		if (mode === "api_token") payload.apiToken = $("sToken").value;
+		else { payload.clientId = $("sClientId").value; payload.clientSecret = $("sClientSecret").value; payload.scopes = $("sScopes").value; }
+		$("setupSave").disabled = true;
+		api("PUT", "/api/setup", payload).then(function () {
+			notify("Saved. Credentials are stored encrypted.");
+			return loadSetup();
+		}).catch(function (e) { notify(e.message, true); }).then(function () { $("setupSave").disabled = false; });
+	});
+
+	$("setupTest").addEventListener("click", function () {
+		$("setupTest").disabled = true;
+		api("POST", "/api/setup/test", {}).then(function (r) { notify(r.message, !r.ok); })
+			.catch(function (e) { notify(e.message, true); }).then(function () { $("setupTest").disabled = false; });
+	});
+
+	$("setupClear").addEventListener("click", function () {
+		if (!confirm("Remove the saved Cloudflare credentials? Existing routes stay attached, but new subdomains will need routes added manually.")) return;
+		api("DELETE", "/api/setup").then(function () { notify("Removed."); return loadSetup(); })
+			.catch(function (e) { notify(e.message, true); });
+	});
+
+	$("copyRedirect").addEventListener("click", function () {
+		var text = $("redirectUri").textContent;
+		navigator.clipboard.writeText(text).then(function () { notify("Copied " + text); }, function () { notify("Could not copy. " + text, true); });
+	});
+
 	$("tabLinks").addEventListener("click", function () { setTab("links"); });
 	$("tabDomains").addEventListener("click", function () { setTab("domains"); });
+	$("tabSetup").addEventListener("click", function () { setTab("setup"); });
 	$("editCancel").addEventListener("click", function () { $("editDialog").close(); });
 	$("detailClose").addEventListener("click", function () { $("detail").close(); });
 	$("search").addEventListener("input", render);
@@ -418,7 +582,17 @@ dialog::backdrop { background: rgba(0,0,0,.5); }
 	api("GET", "/api/config").then(function (cfg) {
 		state.config = cfg;
 		$("who").textContent = "Signed in as " + cfg.user;
-		return load();
+		return Promise.all([load(), loadSetup()]);
+	}).then(function () {
+		// Back from the Cloudflare OAuth consent screen: show the outcome on the Setup tab.
+		var params = new URLSearchParams(location.search);
+		if (params.get("oauth")) {
+			setTab("setup");
+			if (params.get("oauth") === "ok") notify("Cloudflare is connected.");
+			else notify(params.get("message") || "Connecting to Cloudflare failed.", true);
+			history.replaceState(null, "", location.pathname);
+		}
+		updateDomainNote();
 	}).catch(function (e) { notify(e.message, true); });
 })();
 </script>

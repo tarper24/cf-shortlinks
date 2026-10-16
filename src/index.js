@@ -1,20 +1,21 @@
-/**
- * Welcome to Cloudflare Workers! This is your first worker.
- *
- * - Run `npx wrangler dev src/index.js` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your worker in action
- * - Run `npx wrangler publish src/index.js --name my-worker` to publish your worker
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
+import { handleAdmin, adminHostname } from "./admin.js";
+import { recordClick } from "./stats.js";
+
+const FALLBACK_URL = "https://www.github.com/tarper24/cf-shortlinks";
 
 export default {
 	async fetch(request, env) {
+		const requestURL = new URL(request.url);
+
+		// Admin UI and API live on their own hostname, behind Cloudflare Access.
+		if (requestURL.hostname === adminHostname(env)) {
+			return handleAdmin(request, env);
+		}
+
 		const connectingIP = request.headers.get('CF-Connecting-IP');
 		const referer = request.headers.get('referer');
 		const userAgent = request.headers.get('User-Agent');
 
-		const requestURL = new URL(request.url);
 		const subdomain = requestURL.hostname.replace(RegExp(`\\.?${env.BASE_HOSTNAME}$`), "");
 		const pathname = requestURL.pathname.replace(/^\//, "");
 
@@ -23,20 +24,35 @@ export default {
 		const region = request.cf?.region ? request.cf.region + ", " : regionCode;
 		const country = request.cf?.country ? request.cf.country + " - " : "";
 
-		let redirectURL = await env.SHORTLINKS.get("default") || "https://www.github.com/tarper24/cf-shortlinks";
+		const defaultURL = await env.SHORTLINKS.get("default") || FALLBACK_URL;
+		let redirectURL = defaultURL;
+		let matchedSlug = null;
+		let kind = "miss";
 		const uuid = crypto.randomUUID();
 
 		if (["go", "cf-shortlinks"].includes(subdomain)) {
 			if (pathname !== "") {
-				redirectURL = await env.SHORTLINKS.get(pathname) || redirectURL;
+				const found = await env.SHORTLINKS.get(pathname);
+				if (found) {
+					redirectURL = found;
+					matchedSlug = pathname;
+					kind = "link";
+				}
 			}
 		}
 		else if (subdomain !== "") {
-			redirectURL = await env.SHORTDOMAINS.get(subdomain) || redirectURL;
+			const found = await env.SHORTDOMAINS.get(subdomain);
+			if (found) {
+				redirectURL = found;
+				matchedSlug = subdomain;
+				kind = "domain";
+			}
 		}
 
 		console.log(`${uuid} | ${connectingIP} - [${new Date().toISOString()}] "${request.method} ${request.url} ${request.cf?.httpProtocol || "-"}" ${env.REDIRECT_CODE || "-"} "${referer || "-"}" "${userAgent || "-"}" `);
 		console.log(`${uuid} | ${city}${region}${country}${redirectURL}`);
+
+		recordClick(env, request, { slug: matchedSlug, kind, destination: redirectURL });
 
 		return Response.redirect(redirectURL, env.REDIRECT_CODE);
 	},

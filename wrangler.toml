@@ -16,9 +16,17 @@ binding = "SHORTDOMAINS"
 id = "4573460fa4c64f2596ed0c0527ce3b6d"
 preview_id = "8b8875e4a9b14757935c7a835d54c72e"
 
+[[analytics_engine_datasets]]
+binding = "CLICKS"
+dataset = "shortlinks_clicks"
+
 [vars]
 BASE_HOSTNAME = "tarper24.workers.dev"
 REDIRECT_CODE = 301
+ANALYTICS_DATASET = "shortlinks_clicks"
+# Admin UI (admin.<BASE_HOSTNAME>) and stats need extra settings, see README "Admin UI":
+#   vars:    ACCESS_TEAM_DOMAIN, ACCESS_AUD
+#   secrets: CF_ACCOUNT_ID, CF_API_TOKEN
 
 [env.dev]
 workers_dev = false
@@ -26,6 +34,15 @@ workers_dev = false
 [env.dev.vars]
 BASE_HOSTNAME = "dev.tarper24.net"
 REDIRECT_CODE = 301
+ANALYTICS_DATASET = "shortlinks_clicks_dev"
+
+[[env.dev.analytics_engine_datasets]]
+binding = "CLICKS"
+dataset = "shortlinks_clicks_dev"
+
+[[env.dev.routes]]
+pattern = "admin.dev.tarper24.net"
+custom_domain = true
 
 [[env.dev.kv_namespaces]]
 binding = "SHORTLINKS"
@@ -57,6 +74,15 @@ workers_dev = false
 [env.prod.vars]
 BASE_HOSTNAME = "t24.co"
 REDIRECT_CODE = 301
+ANALYTICS_DATASET = "shortlinks_clicks_prod"
+
+[[env.prod.analytics_engine_datasets]]
+binding = "CLICKS"
+dataset = "shortlinks_clicks_prod"
+
+[[env.prod.routes]]
+pattern = "admin.t24.co"
+custom_domain = true
 
 [[env.prod.kv_namespaces]]
 binding = "SHORTLINKS"
